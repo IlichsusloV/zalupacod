@@ -27,17 +27,30 @@ export default function Home() {
     setKeysSaved(true);
   };
 
-  // После сохранения ключей загружаем отзывы (в примере – заглушка)
+  // После сохранения ключей загружаем отзывы с реального API
   useEffect(() => {
     if (keysSaved) {
-      fetch('/api/reviews')
+      fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ozonClientId: apiKeys.ozonClientId,
+          ozonApiKey: apiKeys.ozonApiKey
+        })
+      })
         .then((res) => res.json())
-        .then((data) => setReviews(data.reviews))
-        .catch((err) => console.error('Ошибка при получении отзывов', err));
+        .then((data) => {
+          if (data.error) {
+            console.error('Ошибка при получении отзывов:', data.error);
+          } else {
+            setReviews(data.reviews);
+          }
+        })
+        .catch((err) => console.error('Ошибка запроса:', err));
     }
-  }, [keysSaved]);
+  }, [keysSaved, apiKeys]);
 
-  // Генерация ответа с передачей openaiApiKey
+  // Генерация ответа через нейросеть (здесь заглушка, можно подключить реальный API)
   const handleGenerate = async (reviewId, reviewText) => {
     setLoading((prev) => ({ ...prev, [reviewId]: true }));
     try {
@@ -49,12 +62,12 @@ export default function Home() {
       const data = await res.json();
       setGeneratedAnswers((prev) => ({ ...prev, [reviewId]: data.answer }));
     } catch (error) {
-      console.error('Ошибка при генерации ответа', error);
+      console.error('Ошибка генерации ответа:', error);
     }
     setLoading((prev) => ({ ...prev, [reviewId]: false }));
   };
 
-  // Отправка ответа с передачей OZON ключей
+  // Отправка ответа через Ozon Seller API
   const handleSendAnswer = async (reviewId) => {
     const answer = generatedAnswers[reviewId];
     if (!answer) return;
@@ -70,15 +83,19 @@ export default function Home() {
         })
       });
       const data = await res.json();
-      alert('Ответ успешно отправлен!');
+      if (data.error) {
+        alert('Ошибка при отправке ответа: ' + data.error);
+      } else {
+        alert('Ответ успешно отправлен!');
+      }
     } catch (error) {
-      console.error('Ошибка при отправке ответа', error);
+      console.error('Ошибка отправки ответа:', error);
     }
   };
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h1>Генерация ответов на отзывы Ozon</h1>
+      <h1>Ozon Reviews Responder</h1>
 
       {/* Форма ввода API ключей */}
       {!keysSaved && (
@@ -123,36 +140,26 @@ export default function Home() {
         </form>
       )}
 
-      {/* Если ключи сохранены, отображаем отзывы */}
+      {/* Отображение отзывов */}
       {keysSaved && reviews.length === 0 && <p>Отзывов не найдено.</p>}
       {keysSaved &&
         reviews.map((review) => (
           <div
             key={review.id}
-            style={{
-              border: '1px solid #ccc',
-              marginBottom: '1rem',
-              padding: '1rem'
-            }}
+            style={{ border: '1px solid #ccc', marginBottom: '1rem', padding: '1rem' }}
           >
             <p>
               <strong>Отзыв:</strong> {review.text}
             </p>
-            <button
-              onClick={() => handleGenerate(review.id, review.text)}
-              disabled={loading[review.id]}
-            >
+            <button onClick={() => handleGenerate(review.id, review.text)} disabled={loading[review.id]}>
               {loading[review.id] ? 'Генерация...' : 'Сгенерировать ответ'}
             </button>
             {generatedAnswers[review.id] && (
               <div>
                 <p>
-                  <strong>Сгенерированный ответ:</strong>{' '}
-                  {generatedAnswers[review.id]}
+                  <strong>Сгенерированный ответ:</strong> {generatedAnswers[review.id]}
                 </p>
-                <button onClick={() => handleSendAnswer(review.id)}>
-                  Отправить ответ
-                </button>
+                <button onClick={() => handleSendAnswer(review.id)}>Отправить ответ</button>
               </div>
             )}
           </div>
@@ -160,4 +167,3 @@ export default function Home() {
     </div>
   );
 }
-
